@@ -17,7 +17,7 @@ G = ox.graph_from_place(place_name, network_type="drive")
 # Visualize the graph (before shortest path calculations)
 #ox.plot_graph(G)
 
-print("Sample nodes and attached data:")
+print("Sample nodes/edges and attached data:")
 for node, data in list(G.nodes(data=True))[:10]:
     print(node, data)
 for u, v, data in list(G.edges(data=True))[:10]:
@@ -25,6 +25,8 @@ for u, v, data in list(G.edges(data=True))[:10]:
 
 #orig, dest = list(G.nodes)[:2]  # Predetermined 2 nodes
 orig, dest = random.choices(list(G.nodes), k=2)  # Choose two nodes randomly
+
+print(f'Info for OpenStreetMap\n----------\norigin node: {orig}\ndestination node: {dest}')
 
 # Compute the shortest path using Dijkstra's algorithm (built in)
 route = nx.shortest_path(G, source=orig, target=dest, weight="length")
