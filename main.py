@@ -5,7 +5,7 @@
 import osmnx as ox
 import networkx as nx
 import random
-import pytest
+from tnr import CHNode, ContractionHierarchyTNR
 
 # Small sample plot: Falcon
 
@@ -13,6 +13,15 @@ def main():
     G = create_graph()
     orig, dest = get_random_nodes(G)
     route = find_shortest_path(G, orig, dest)
+
+
+    # Create and preprocess CH-TNR
+    ch_tnr = ContractionHierarchyTNR(G)
+    ch_tnr.preprocess(cell_size=0.01)  # Adjust cell size based on your graph scale
+
+    # Query
+    distance = ch_tnr.query(orig, dest)
+    print(f"CH-TNR distance from {orig} to {dest}: {distance}") #TODO: figure out how to make distance talk to route
 
     return G, orig, dest, route
     
