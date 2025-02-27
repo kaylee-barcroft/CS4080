@@ -74,16 +74,26 @@ class ContractionHierarchyTNR:
                     # Check if shortcut is necessary
                     original_dist = float('inf')
                     try:
-                        path = nx.shortest_path(self.original_graph, u, v, weight='weight')
+                        path = nx.shortest_path(self.original_graph, u, v, weight='length')
                         if node not in path[1:-1]:  # If node is not on shortest path
-                            original_dist = sum(self.original_graph[path[i]][path[i+1]]['weight'] 
+                            original_dist = sum(self.original_graph[path[i]][path[i+1]][0]['length'] 
                                              for i in range(len(path)-1))
                     except nx.NetworkXNoPath:
                         pass
                     
-                    # Distance through node
-                    direct_dist = (self.original_graph[u][node]['weight'] + 
-                                 self.original_graph[node][v]['weight'])
+                    # Add error handling for missing edges
+                    try:
+                        # Check if both edges exist
+                        if node in self.original_graph[u] and v in self.original_graph[node]:
+                            direct_dist = (self.original_graph[u][node][0]['length'] +
+                                        self.original_graph[node][v][0]['length'])
+                        else:
+                            direct_dist = float('inf')  # No direct path through node
+                    except KeyError:
+                        direct_dist = float('inf')  # No direct path through node
+                    # # Distance through node
+                    # direct_dist = (self.original_graph[u][node][0]['length'] + 
+                    #              self.original_graph[node][v][0]['length'])
                     
                     if direct_dist < original_dist:
                         shortcut_count += 1
@@ -130,14 +140,22 @@ class ContractionHierarchyTNR:
             for v in neighbors[i+1:]:
                 if u != v:
                     # Check if shortcut is necessary
-                    direct_dist = (self.original_graph[u][node]['weight'] + 
-                                 self.original_graph[node][v]['weight'])
+                                        # Add error handling for missing edges
+                    try:
+                        # Check if both edges exist
+                        if node in self.original_graph[u] and v in self.original_graph[node]:
+                            direct_dist = (self.original_graph[u][node][0]['length'] +
+                                        self.original_graph[node][v][0]['length'])
+                        else:
+                            direct_dist = float('inf')  # No direct path through node
+                    except KeyError:
+                        direct_dist = float('inf')  # No direct path through node
                     
                     # Try to find alternative path without using node
                     try:
-                        path = nx.shortest_path(self.original_graph, u, v, weight='weight')
+                        path = nx.shortest_path(self.original_graph, u, v, weight='length')
                         if node not in path[1:-1]:  # If node is not on shortest path
-                            alt_dist = sum(self.original_graph[path[i]][path[i+1]]['weight'] 
+                            alt_dist = sum(self.original_graph[path[i]][path[i+1]][0]['length'] 
                                          for i in range(len(path)-1))
                             if alt_dist <= direct_dist:
                                 continue
@@ -198,7 +216,7 @@ class ContractionHierarchyTNR:
             
             # Regular edges
             for neighbor in self.original_graph.neighbors(node):
-                weight = self.original_graph[node][neighbor]['weight']
+                weight = self.original_graph[node][neighbor][0]['length']
                 new_dist = dist + weight
                 
                 if neighbor not in distances or new_dist < distances[neighbor]:
