@@ -1,6 +1,3 @@
-# THE FOLLOWING IS AN UNTESTED TRIAL IMPLEMENTATION OF CH BASED TNR.
-# NEEDS EVALUATION AND WORK. This is a baseline implementation to work from.
-
 import networkx as nx
 import heapq
 from typing import Dict, List, Set, Tuple, Optional
@@ -54,55 +51,71 @@ class ContractionHierarchyTNR:
     def _node_importance(self, node: int) -> float:
         """
         Calculate importance of a node for contraction ordering
-        
+
         Args:
             node: Node ID to evaluate
-            
+
         Returns:
             Importance score (higher means more important)
         """
         ch_node = self.nodes[node]
-        
+
         # Count number of shortcuts that would be added
-        neighbors = set(self.original_graph.neighbors(node))
+        neighbors = list(self.original_graph.neighbors(node))
+
+        # If node has few neighbors, we can contract it earlier
+        if len(neighbors) <= 1:
+            return -1  # Prioritize nodes with few neighbors
+
+        # # Limit number of neighbor pairs to check to avoid excessive computation
+        max_pairs = min(20, len(neighbors) * (len(neighbors) - 1) // 2)
+        pairs_checked = 0
         shortcut_count = 0
         edge_difference = 0
-        
-        for u in neighbors:
-            for v in neighbors:
-                if u != v:
-                    # Check if shortcut is necessary
-                    original_dist = float('inf')
-                    try:
-                        path = nx.shortest_path(self.original_graph, u, v, weight='length')
-                        if node not in path[1:-1]:  # If node is not on shortest path
-                            original_dist = sum(self.original_graph[path[i]][path[i+1]][0]['length'] 
-                                             for i in range(len(path)-1))
-                    except nx.NetworkXNoPath:
-                        pass
-                    
-                    # Add error handling for missing edges
-                    try:
-                        # Check if both edges exist
-                        if node in self.original_graph[u] and v in self.original_graph[node]:
-                            direct_dist = (self.original_graph[u][node][0]['length'] +
-                                        self.original_graph[node][v][0]['length'])
-                        else:
-                            direct_dist = float('inf')  # No direct path through node
-                    except KeyError:
-                        direct_dist = float('inf')  # No direct path through node
-                    # # Distance through node
-                    # direct_dist = (self.original_graph[u][node][0]['length'] + 
-                    #              self.original_graph[node][v][0]['length'])
-                    
-                    if direct_dist < original_dist:
-                        shortcut_count += 1
-                        edge_difference += 1  # Add shortcut
-        
-        edge_difference -= len(neighbors)  # Subtract removed edges
-        
+
+        # Use a more efficient approach to check neighbor pairs
+        for i, u in enumerate(neighbors):
+            for j, v in enumerate(neighbors[i + 1:], i + 1):
+                # # Stop if we've checked enough pairs
+                if pairs_checked >= max_pairs:
+                    break
+
+                pairs_checked += 1
+
+                # Check if both edges (u,node) and (node,v) exist and get their weights
+                try:
+                    # Direct path through node
+                    u_to_node = self.original_graph[u][node][0]['length']
+                    node_to_v = self.original_graph[node][v][0]['length']
+                    direct_dist = u_to_node + node_to_v
+                except (KeyError, IndexError):
+                    continue  # Skip if edges don't exist or don't have length
+
+                # Check if there's a shorter path without going through node
+                # Instead of computing the full shortest path, just check direct edges
+                try:
+                    # If u and v are directly connected, use that distance
+                    if v in self.original_graph[u]:
+                        alt_dist = self.original_graph[u][v][0]['length']
+                        if alt_dist <= direct_dist:
+                            continue  # No shortcut needed
+                except (KeyError, IndexError):
+                    pass  # No direct edge, continue with shortcut check
+
+                # If we get here, a shortcut might be necessary
+                # We'll add a small penalty for long shortcuts
+                shortcut_count += 1
+                edge_difference += 1  # Add shortcut
+
+        # Subtract removed edges (more edges removed = more important to contract)
+        edge_difference -= len(neighbors)
+
+        # Consider node level in the hierarchy
+        level_factor = ch_node.level / 20.0  # Scale down the influence of level
+
         # Combine factors into importance score
-        return shortcut_count + edge_difference + ch_node.level
+        # Lower importance = contract earlier
+        return shortcut_count + edge_difference + level_factor
     
     def _build_contraction_hierarchy(self):
         """
@@ -195,42 +208,68 @@ class ContractionHierarchyTNR:
             
             self.access_nodes[node] = {t for _, t in closest_transit}
     
-    def _ch_based_search(self, source: int) -> Dict[int, float]:
+    def _ch_based_search(self, source: int, targets: Optional[Set[int]] = None) -> Dict[int, float]:
         """
-        Perform CH-based search from source node
+        Perform optimized CH-based search from source node
         
         Args:
             source: Source node ID
-            
+            targets: Optional set of target nodes to stop search once all are found
+                
         Returns:
             Dictionary mapping node IDs to distances
         """
         distances = {source: 0.0}
         pq = [(0.0, source)]
+        visited = set()
         
-        while pq:
+        # Track if we've found all targets
+        targets_found = 0
+        max_targets = len(targets) if targets else float('inf')
+        
+        while pq and (targets is None or targets_found < max_targets):
             dist, node = heapq.heappop(pq)
             
-            if dist > distances[node]:
+            # Skip already processed nodes
+            if node in visited:
                 continue
-            
-            # Regular edges
-            for neighbor in self.original_graph.neighbors(node):
-                weight = self.original_graph[node][neighbor][0]['length']
-                new_dist = dist + weight
                 
-                if neighbor not in distances or new_dist < distances[neighbor]:
-                    distances[neighbor] = new_dist
-                    heapq.heappush(pq, (new_dist, neighbor))
+            visited.add(node)
             
-            # Shortcut edges
+            # Early termination if we've found a target
+            if targets and node in targets:
+                targets_found += 1
+                
+            # Skip if we've already found a better path
+            if dist > distances.get(node, float('inf')):
+                continue
+                
+            # First try shortcuts (likely to provide longer jumps)
             ch_node = self.nodes[node]
             for target, weight in ch_node.shortcuts.items():
+                if target in visited:
+                    continue
+                    
                 new_dist = dist + weight
-                
                 if target not in distances or new_dist < distances[target]:
                     distances[target] = new_dist
                     heapq.heappush(pq, (new_dist, target))
+            
+            # Then try regular edges
+            for neighbor in self.original_graph.neighbors(node):
+                if neighbor in visited:
+                    continue
+                    
+                try:
+                    weight = self.original_graph[node][neighbor][0]['length']
+                    new_dist = dist + weight
+                    
+                    if neighbor not in distances or new_dist < distances[neighbor]:
+                        distances[neighbor] = new_dist
+                        heapq.heappush(pq, (new_dist, neighbor))
+                except (KeyError, IndexError):
+                    # Skip edges without length information
+                    continue
         
         return distances
     
@@ -238,12 +277,20 @@ class ContractionHierarchyTNR:
         """
         Build distance table between all pairs of transit nodes using CH
         """
+        self.distance_table = {}
+        
+        # For each transit node, compute distances to all other transit nodes
         for source in self.transit_nodes:
-            distances = self._ch_based_search(source)
+            # Only compute distances to other transit nodes, not the entire graph
+            distances = self._ch_based_search(source, self.transit_nodes)
+            
             for target in self.transit_nodes:
                 if target in distances:
                     self.distance_table[(source, target)] = distances[target]
-    
+                else:
+                    # Handle unreachable nodes explicitly
+                    self.distance_table[(source, target)] = float('inf')
+        
     def query(self, source: int, target: int) -> float:
         """
         Query shortest path distance between two nodes using CH-TNR
@@ -251,31 +298,60 @@ class ContractionHierarchyTNR:
         Args:
             source: Source node ID
             target: Target node ID
-            
+                
         Returns:
             Shortest path distance
         """
-        # Local query if nodes share access nodes
-        if self.access_nodes[source].intersection(self.access_nodes[target]):
-            return self._ch_based_search(source)[target]
+        # Quick check for same node
+        if source == target:
+            return 0.0
+            
+        # Check if source or target are valid nodes
+        if source not in self.nodes or target not in self.nodes:
+            return float('inf')
+            
+        # Check if source and target share access nodes (local query)
+        common_access = self.access_nodes[source].intersection(self.access_nodes[target])
+        if common_access:
+            # For local queries, just use direct CH search
+            # Only compute paths to the target, not the entire graph
+            source_to_target = self._ch_based_search(source, {target})
+            return source_to_target.get(target, float('inf'))
         
-        # TNR query using access nodes and CH
+        # TNR query using access nodes
         min_distance = float('inf')
-        source_distances = self._ch_based_search(source)
-        target_distances = self._ch_based_search(target)
         
+        # Get source access nodes and distances to them
+        source_distances = self._ch_based_search(source, self.access_nodes[source])
+        
+        # Check if source can reach any access nodes
+        if not any(access in source_distances for access in self.access_nodes[source]):
+            return float('inf')
+            
+        # Get target access nodes and distances from them
+        target_distances = self._ch_based_search(target, self.access_nodes[target])
+        
+        # Check if target can be reached from any access nodes
+        if not any(access in target_distances for access in self.access_nodes[target]):
+            return float('inf')
+        
+        # Calculate min distance through access nodes
         for s_access in self.access_nodes[source]:
             if s_access not in source_distances:
                 continue
+                
             d1 = source_distances[s_access]
             
             for t_access in self.access_nodes[target]:
                 if t_access not in target_distances:
                     continue
-                if (s_access, t_access) not in self.distance_table:
+                    
+                # Get distance between access nodes from the distance table
+                table_key = (s_access, t_access)
+                if table_key not in self.distance_table:
                     continue
                     
-                d2 = self.distance_table[(s_access, t_access)]
+                d2 = self.distance_table[table_key]
                 d3 = target_distances[t_access]
                 
                 total_distance = d1 + d2 + d3
