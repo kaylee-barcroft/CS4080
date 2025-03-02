@@ -4,6 +4,7 @@ from main import create_graph, get_random_nodes, find_shortest_path
 import time
 from tnr import ContractionHierarchyTNR
 import copy
+from memory_profiler import memory_usage
 
 
 @pytest.fixture
@@ -203,3 +204,22 @@ def test_path_endpoints(graph):
     route = find_shortest_path(graph, orig, dest)
     assert route[0] == orig
     assert route[-1] == dest
+
+
+def test_tnr_memory_usage(graph):
+    """Measure CH-TNR preprocessing memory consumption"""
+
+    def preprocess():
+        ch_tnr = ContractionHierarchyTNR(graph)
+        ch_tnr.preprocess(cell_size=0.01)
+
+    mem_before = memory_usage(-1, interval=0.1, timeout=1)[0]  # Get initial memory
+    mem_during = memory_usage(preprocess, interval=0.1)  # Measure during execution
+    mem_after = memory_usage(-1, interval=0.1, timeout=1)[0]  # After execution
+
+    max_mem_used = max(mem_during) - mem_before
+
+    print(f"CH-TNR Memory Usage: {max_mem_used:.2f} MB")
+
+    # Ensure memory usage is reasonable (adjust threshold based on dataset size)
+    assert max_mem_used < 500, "CH-TNR preprocessing used too much memory!"
