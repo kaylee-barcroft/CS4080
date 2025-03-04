@@ -3,7 +3,7 @@ import heapq
 import math
 from contraction_hierarchies import create_contraction_hierarchy
 
-# Original code from Andy
+# Original code from Andy (tnr_andy.py)
 
 class TransitNodeRouting:
     def __init__(self, G, k):

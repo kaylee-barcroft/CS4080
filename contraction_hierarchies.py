@@ -108,7 +108,7 @@ def create_contraction_hierarchy(
                     rank[remaining_node] = remaining_ranks[remaining_node]
             remaining_node_order = sorted(remaining_ranks, key=remaining_ranks.get)
             end_time = time.time()
-            print(f"Processed node {i+1}/{len(node_order)-1} in {end_time - start_time:.4f} seconds")
+            #print(f"Processed node {i+1}/{len(node_order)-1} in {end_time - start_time:.4f} seconds")
 
         # Reorder nodes by the specified criterion (ascending)
         final_node_order.append(remaining_node_order[0])
@@ -124,7 +124,7 @@ def create_contraction_hierarchy(
                 criterion=criterion,
             )[1]
             end_time = time.time()
-            print(f"Processed node {i+1}/{len(node_order)} in {end_time - start_time:.4f} seconds")
+            #print(f"Processed node {i+1}/{len(node_order)} in {end_time - start_time:.4f} seconds")
 
     return nx.compose(shortcut_graph, graph), node_order, shortcuts_added
 

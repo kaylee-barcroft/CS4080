@@ -27,11 +27,11 @@ def main_tnr(G, G_undirected, source, target):
     # ✅ Define the 6 correct ordering criteria
     ordering_methods = [
         # ("edge_difference", True),
-        ("edge_difference", False),
+        ("edge_difference", True),
         # ("shortcuts_added", True),
-        ("shortcuts_added", False),
+        ("shortcuts_added", True),
         # ("edges_removed", True),
-        ("edges_removed", False),
+        ("edges_removed", True),
     ]
 
     for criterion, online in ordering_methods:
@@ -107,11 +107,11 @@ def get_results(results):
                                                 "Query Time (s)", "Path Length", "Query Memory (MB)"])
 
     # ✅ Print Full Table Without Truncation
-    print("\n🔹 CH Ordering Comparison Results:")
+    print("\n🔹 TNR Ordering Comparison Results:")
     print(df_results)
 
     # ✅ Save Results to a CSV File
-    df_results.to_csv("TNR_results.csv", index=False)
+    df_results.to_csv("TNR_on_results.csv", index=False)
     print("\n✅ Results saved as 'TNR_results.csv'. Open it to view all columns.")
 
 if __name__ == '__main__':

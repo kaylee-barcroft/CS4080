@@ -73,11 +73,6 @@ def create_graph():
     return G
 
 def get_random_nodes(G):
-    # print("Sample nodes/edges and attached data:")
-    # for node, data in list(G.nodes(data=True))[:10]:
-    #     print(node, data)
-    # for u, v, data in list(G.edges(data=True))[:10]:
-    #     print(u, v, data)
 
     # orig, dest = list(G.nodes)[:2]  # Predetermined 2 nodes
     orig, dest = random.choices(list(G.nodes), k=2)  # Choose two nodes randomly

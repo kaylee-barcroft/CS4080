@@ -3,6 +3,8 @@ import heapq
 from typing import Dict, List, Set, Tuple, Optional
 from collections import defaultdict
 
+# tnr.py written by Kaylee (and Claude.ai)
+
 class CHNode:
     def __init__(self, node_id: int, level: int = 0):
         self.id = node_id
